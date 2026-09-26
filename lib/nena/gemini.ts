@@ -2,7 +2,7 @@ import { GoogleGenerativeAI, GoogleGenerativeAIFetchError, type ResponseSchema }
 import type { ZodTypeAny, z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 
-export const NENA_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+export const NENA_MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
 
 /** Nena's voice, shared by every prompt. */
 export const NENA_PERSONA = [
