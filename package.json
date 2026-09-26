@@ -4,6 +4,7 @@
   "private": true,
   "description": "Bookkeeping, payroll and ready-to-file BIR reports for independent accountants, with Nena as the AI assistant.",
   "scripts": {
+    "predev": "node scripts/kill-port.js 3000",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
