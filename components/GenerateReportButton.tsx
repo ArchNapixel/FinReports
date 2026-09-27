@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { REPORT_TYPES, REPORT_LABELS, type ReportType } from "@/lib/reports/build";
 import type { ReceiptExtraction } from "@/lib/nena/receipt";
+import { ExcelSheet } from "@/components/reports/ExcelSheet";
 import {
   buildSalesSummary,
   combineSales,
@@ -282,39 +283,37 @@ function SalesSummaryView({ rowsByFile }: { rowsByFile: Record<string, SalesCsvR
         <div key={c.source} className="rounded border border-slate-200 p-4">
           <p className="font-semibold text-ink">{c.company}</p>
 
-          <table className="mt-2 w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-ink-faint">
-                <th className="font-medium">Category</th>
-                <th className="font-medium text-right">Units</th>
-                <th className="font-medium text-right">Amount</th>
-                <th className="font-medium text-right">%</th>
-              </tr>
-            </thead>
-            <tbody>
-              {c.categories.map((cat) => (
-                <tr key={cat.category}>
-                  <td className="text-ink-muted">{cat.category}</td>
-                  <td className="text-right tabular-nums text-ink-muted">{cat.units}</td>
-                  <td className="text-right tabular-nums text-ink">₱{cat.amount.toLocaleString()}</td>
-                  <td className="text-right tabular-nums text-ink-muted">{pct(cat.pctOfCompany)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="mt-2">
+            <ExcelSheet
+              sheetName={c.company}
+              columns={[
+                { key: "category", label: "Category" },
+                { key: "units", label: "Units", align: "right" },
+                { key: "amount", label: "Amount", align: "right" },
+                { key: "pct", label: "%", align: "right" },
+              ]}
+              rows={c.categories.map((cat) => ({
+                category: cat.category,
+                units: cat.units,
+                amount: `₱${cat.amount.toLocaleString()}`,
+                pct: pct(cat.pctOfCompany),
+              }))}
+              totalRow={{ category: "Total", units: c.unitsSold, amount: `₱${c.salesAmount.toLocaleString()}`, pct: "100.0%" }}
+            />
+          </div>
 
           <p className="mt-3 text-xs font-medium uppercase tracking-wide text-ink-faint">Payment method</p>
-          <table className="mt-1 w-full text-sm">
-            <tbody>
-              {c.payments.map((p) => (
-                <tr key={p.method}>
-                  <td className="text-ink-muted">{p.method}</td>
-                  <td className="text-right tabular-nums text-ink">₱{p.amount.toLocaleString()}</td>
-                  <td className="text-right tabular-nums text-ink-muted">{pct(p.pctOfCompany)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="mt-1">
+            <ExcelSheet
+              sheetName="Payment method"
+              columns={[
+                { key: "method", label: "Method" },
+                { key: "amount", label: "Amount", align: "right" },
+                { key: "pct", label: "%", align: "right" },
+              ]}
+              rows={c.payments.map((p) => ({ method: p.method, amount: `₱${p.amount.toLocaleString()}`, pct: pct(p.pctOfCompany) }))}
+            />
+          </div>
 
           <div className="mt-3 grid grid-cols-2 gap-1 text-xs text-ink-muted">
             <span>Transactions: {c.transactions}</span>
@@ -327,29 +326,18 @@ function SalesSummaryView({ rowsByFile }: { rowsByFile: Record<string, SalesCsvR
 
       <div className="rounded border border-slate-200 p-4">
         <p className="font-semibold text-ink">Consolidated Summary — All Client Companies</p>
-        <table className="mt-2 w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-ink-faint">
-              <th className="font-medium">Client Company</th>
-              <th className="font-medium text-right">Total Sales</th>
-              <th className="font-medium text-right">% of Portfolio</th>
-            </tr>
-          </thead>
-          <tbody>
-            {report.portfolio.map((p) => (
-              <tr key={p.company}>
-                <td className="text-ink-muted">{p.company}</td>
-                <td className="text-right tabular-nums text-ink">₱{p.totalSales.toLocaleString()}</td>
-                <td className="text-right tabular-nums text-ink-muted">{pct(p.pctOfPortfolio)}</td>
-              </tr>
-            ))}
-            <tr className="border-t border-slate-200 font-medium">
-              <td className="text-ink">Grand Total</td>
-              <td className="text-right tabular-nums text-ink">₱{report.grandTotal.toLocaleString()}</td>
-              <td className="text-right tabular-nums text-ink">100.0%</td>
-            </tr>
-          </tbody>
-        </table>
+        <div className="mt-2">
+          <ExcelSheet
+            sheetName="Consolidated Summary"
+            columns={[
+              { key: "company", label: "Client Company" },
+              { key: "total", label: "Total Sales", align: "right" },
+              { key: "pct", label: "% of Portfolio", align: "right" },
+            ]}
+            rows={report.portfolio.map((p) => ({ company: p.company, total: `₱${p.totalSales.toLocaleString()}`, pct: pct(p.pctOfPortfolio) }))}
+            totalRow={{ company: "Grand Total", total: `₱${report.grandTotal.toLocaleString()}`, pct: "100.0%" }}
+          />
+        </div>
       </div>
     </div>
   );
@@ -365,23 +353,29 @@ function CsvExport({ csv, filename }: { csv: string; filename: string }) {
     return () => URL.revokeObjectURL(blobUrl);
   }, [csv]);
 
-  const previewLines = csv.split("\n").slice(0, 12);
-  const truncated = csv.split("\n").length > previewLines.length;
+  const allLines = csv.split("\n").filter(Boolean).map((l) => l.split(","));
+  const [header, ...dataLines] = allLines;
+  const previewRows = dataLines.slice(0, 20);
+  const truncated = dataLines.length > previewRows.length;
 
   return (
-    <div className="mt-3 rounded border border-slate-200 p-3">
+    <div className="mt-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-medium uppercase tracking-wide text-ink-faint">CSV preview</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-ink-faint">Report preview</p>
         {url && (
           <a href={url} download={filename} className="rounded bg-nena px-3 py-1 text-xs text-white">
             Download CSV
           </a>
         )}
       </div>
-      <pre className="mt-2 overflow-x-auto rounded bg-slate-50 p-2 text-xs text-ink-muted">
-        {previewLines.join("\n")}
-        {truncated ? "\n…" : ""}
-      </pre>
+      <div className="mt-2">
+        <ExcelSheet
+          sheetName={filename}
+          columns={(header ?? []).map((label, i) => ({ key: String(i), label }))}
+          rows={previewRows.map((cells) => Object.fromEntries(cells.map((v, i) => [String(i), v])))}
+        />
+      </div>
+      {truncated && <p className="mt-1 text-xs text-ink-faint">Showing first {previewRows.length} of {dataLines.length} rows — full report is in the download.</p>}
     </div>
   );
 }
